@@ -1,0 +1,34 @@
+# Python virtual environment
+/venv/
+/.venv/
+env/
+.env
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Local databases and storage
+/vector_db/
+/chroma_storage/
+/arc_chrome_db_storage/
+/history/
+
+# Source documents and PDFs (these are large and not needed in the repo)
+/docs/
+/pdfs/
+/documents/
+
+# Log files
+*.log
+conversation_log.txt
+
+# IDE and editor folders
+.vscode/
+.idea/
+
+# OS-specific files
+.DS_Store
+Thumbs.db

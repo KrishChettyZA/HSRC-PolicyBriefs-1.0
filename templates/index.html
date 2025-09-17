@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HSRC Policy Brief Chatbot</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <link rel="stylesheet" href="/static/styles.css">
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <div class="overlay-backdrop" id="overlayBackdrop"></div>
+    <div class="container" id="mainContainer">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h2>Past Sessions</h2>
+                <button id="newChatBtn" class="new-chat-btn">
+                    <i class="fas fa-plus"></i> New Chat
+                </button>
+            </div>
+            <ul class="session-list" id="sessionList"></ul>
+        </aside>
+
+        <main class="chat-area">
+            <button id="toggleSidebarBtn" class="toggle-sidebar-btn" title="Toggle History">
+                <i class="fas fa-chevron-left"></i>
+            </button>
+
+            <header class="chat-header">
+                <button class="mobile-toggle-btn" id="mobileHistoryBtn" title="Show Sessions">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <div class="header-title-container">
+                    <img src="/static/Images/HSRCLogo.png" alt="HSRC Logo" class="header-logo">
+                    <div>
+                        <h1>HSRC Policy Brief Chatbot</h1>
+                        <p class="header-subtitle">Exploring published HSRC Policy Briefs</p>
+                    </div>
+                </div>
+                <button class="mobile-toggle-btn" id="mobileReferencesBtn" title="Show References">
+                    <i class="fas fa-book-open"></i>
+                </button>
+            </header>
+
+            <div class="chat-messages" id="chatMessages">
+                </div>
+
+            <div class="chat-input-area">
+                <div class="input-wrapper">
+                    <textarea id="userInput" placeholder="Ask your question..." rows="1"></textarea>
+                    <button id="sendBtn" class="send-btn" title="Send message">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </main>
+
+        <aside class="references-panel" id="referencesPanel">
+            <div class="references-header">
+                <h2>References <span id="citationCount">(0)</span></h2>
+            </div>
+            <div class="references-content" id="referencesContent">
+                <p class="no-references">Citations for responses will appear here.</p>
+            </div>
+        </aside>
+    </div>
+
+    <footer class="app-footer">
+        <div class="footer-content">
+            <div class="footer-left">
+                <p>&copy; 2025 HSRC Policy Brief Chatbot</p>
+            </div>
+            <div class="footer-center">
+                <p>Exploring HSRC Policy Briefs</p>
+            </div>
+            <div class="footer-right">
+                <a href="#" class="footer-link">Privacy Policy</a>
+                <span class="footer-separator">|</span>
+                <a href="#" class="footer-link">Terms of Service</a>
+            </div>
+        </div>
+    </footer>
+
+    <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+        <div class="loading-spinner">
+            <div class="spinner"></div>
+            <p>Processing your request...</p>
+        </div>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>
