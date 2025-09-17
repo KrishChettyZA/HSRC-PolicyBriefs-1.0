@@ -7,6 +7,7 @@ import shutil
 import stat
 import sys
 import hashlib
+import gc # Added for garbage collection
 from pathlib import Path
 from flask import Flask, request, render_template, jsonify, Response, send_from_directory
 from dotenv import load_dotenv
@@ -62,7 +63,7 @@ class ApiKeyManager:
 
 # --- Configuration ---
 try:
-    MODEL_NAME = "gemini-2.0-flash"
+    MODEL_NAME = "gemini-2.0-flash" # Corrected model name based on your code
     EMBEDDING_MODEL_NAME = "models/embedding-001"
     
     API_KEY_MANAGER = ApiKeyManager()
@@ -132,7 +133,6 @@ app = Flask(__name__)
 
 # --- Directory and Database Initialization ---
 def setup_database_and_directories():
-    # --- MODIFICATION START: Use persistent storage on Render ---
     # Check if the standard Render disk mount path exists.
     render_data_path = Path("/data/arc_chroma_db_storage")
     if render_data_path.is_dir():
@@ -161,7 +161,6 @@ def setup_database_and_directories():
     logging.info(f"📁 ChromaDB Storage: {storage_path.resolve()}")
     logging.info(f"📁 History Directory: {history_dir.resolve()}")
     logging.info(f"📁 Receipts Directory: {receipts_dir.resolve()}")
-    # --- MODIFICATION END ---
 
     client = chromadb.PersistentClient(path=str(storage_path))
     collection_name = "arc_career_guidance_pure_rag_v1"
@@ -200,7 +199,6 @@ LOG_FILE_PATH = Path(__file__).parent / "conversation_log.txt"
 # --- Load Prompts and Summaries ---
 BASE_SYSTEM_PROMPT = load_text_file(Path(__file__).parent / "prompt.txt", "System prompt")
 REF_SUMMARIES = load_text_file(Path(__file__).parent / "HSRCSummaries.txt", "HSRC Summaries")
-#REF_JOBS = load_text_file(Path(__file__).parent / "REFJobs.txt", "REF Jobs")
 
 # Combine all context into a single, comprehensive system prompt
 FULL_SYSTEM_PROMPT = f"""
@@ -209,8 +207,6 @@ FULL_SYSTEM_PROMPT = f"""
 --- HIGH-LEVEL CONTEXT: SUMMARIES ---
 {REF_SUMMARIES}
 ---
-
-
 """
 
 # --- Document Processing ---
@@ -221,7 +217,9 @@ def process_all_pdfs():
         logging.warning("📂 No PDF files found.")
         return
 
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=400)
+    # *** MODIFICATION: Reduced chunk size for better memory performance ***
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=200)
+    
     for pdf_file in pdf_files:
         try:
             if pdf_file.stat().st_size < 1024:
@@ -267,6 +265,7 @@ def process_all_pdfs():
         except Exception as e:
             logging.error(f"❌ An unexpected error occurred while processing {pdf_file.name}: {e}", exc_info=True)
     logging.info(f"\n🎉 PDF processing complete. Total items in collection: {COLLECTION.count()}")
+    gc.collect() # Clean up memory after processing all PDFs
 
 # --- Chat History and Logging ---
 def save_chat_history(session_id: str, history: List[Dict]):
@@ -309,11 +308,13 @@ def pure_rag_generation(message: str, history: List[Dict]) -> Iterator[str]:
     deeper_question = generate_deeper_question(message, history)
     
     try:
-        doc_results = COLLECTION.query(query_texts=[deeper_question], n_results=15, where={"chunk_type": "document"})
+        # *** MODIFICATION: Reduced n_results for better memory/cost performance ***
+        doc_results = COLLECTION.query(query_texts=[deeper_question], n_results=7, where={"chunk_type": "document"})
         retrieved_docs = list(zip(doc_results.get('documents', [[]])[0], doc_results.get('metadatas', [[]])[0]))
     except Exception as e:
         logging.error(f"❌ ChromaDB query failed: {e}")
         yield f"data: {json.dumps({'type': 'error', 'payload': 'Failed to retrieve information from the knowledge base.'})}\n\n"
+        gc.collect() # Clean up even on failure
         return
 
     if not retrieved_docs:
@@ -321,6 +322,7 @@ def pure_rag_generation(message: str, history: List[Dict]) -> Iterator[str]:
         no_info_message = "I'm sorry, but I couldn't find any specific information related to your question in the available documents."
         yield f"data: {json.dumps({'type': 'text', 'payload': no_info_message})}\n\n"
         yield f"data: {json.dumps({'type': 'end', 'payload': {'full_text': no_info_message}})}\n\n"
+        gc.collect() # Clean up
         return
 
     context = "DOCUMENT EXCERPTS FOR CONTEXT:\n"
@@ -353,6 +355,7 @@ def pure_rag_generation(message: str, history: List[Dict]) -> Iterator[str]:
                     yield f"data: {json.dumps({'type': 'text', 'payload': chunk.text})}\n\n"
             
             yield f"data: {json.dumps({'type': 'end', 'payload': {'full_text': full_response}})}\n\n"
+            gc.collect() # *** MODIFICATION: Clean up memory after a successful generation ***
             return
 
         except google_exceptions.ResourceExhausted:
@@ -363,10 +366,12 @@ def pure_rag_generation(message: str, history: List[Dict]) -> Iterator[str]:
             else:
                 logging.error("❌ All API keys are rate-limited. Aborting.")
                 yield f"data: {json.dumps({'type': 'error', 'payload': 'All available API keys are currently rate-limited.'})}\n\n"
+                gc.collect() # Clean up
                 return
         except Exception as e:
             logging.error(f"❌ An unexpected error occurred during chat generation: {e}", exc_info=True)
             yield f"data: {json.dumps({'type': 'error', 'payload': 'An unexpected error occurred.'})}\n\n"
+            gc.collect() # Clean up
             return
 
 # --- Flask API Endpoints ---
@@ -403,6 +408,8 @@ def chat():
             history.append({"role": "model", "parts": [full_response], "citations": citations})
             save_chat_history(session_id, history)
             log_conversation(session_id, message, full_response)
+        
+        gc.collect() # *** MODIFICATION: Clean up memory after the entire request is finished ***
 
     return Response(stream_and_save(), mimetype='text/event-stream')
 
@@ -429,20 +436,19 @@ def delete_session(session_id):
     (HISTORY_DIRECTORY / f"{session_id}.json").unlink(missing_ok=True)
     return jsonify({"success": True})
 
-# --- NEW LOCATION for the PDF serving route ---
-# This route allows the browser to fetch the PDF files for the reference links.
-# It's now outside the __name__ block so it works on Render.
 @app.route('/documents/<path:filename>')
 def serve_document(filename):
     return send_from_directory(PDF_DIRECTORY, filename, as_attachment=False)
 
 # --- Main Execution ---
 
-# Call the PDF processing function when the application starts.
-process_all_pdfs()
+# *** MODIFICATION: The PDF processing function is no longer called on startup. ***
+# This function should be run by your `build.py` script during deployment.
+# process_all_pdfs()
 
 # The following block only runs when the script is executed directly
 # (i.e., `python app.py`), not when imported by a server like Gunicorn.
 if __name__ == '__main__':
-    # This starts the Flask development server.
+    # You can uncomment the line below for local testing if you need to re-process PDFs
+    # process_all_pdfs() 
     app.run(host='0.0.0.0', port=5003, debug=True)
